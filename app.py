@@ -10,8 +10,38 @@ st.set_page_config(page_title="LTX-2 일괄 생성기", page_icon="🎬", layout
 
 st.title("🎬 LTX-2 일괄 영상 생성기")
 
-# API 키
-api_key = st.text_input("🔑 Replicate API 키", type="password", placeholder="r8_...")
+# ==================== API 키 가이드 ====================
+with st.expander("🔑 API 키 발급 방법 (처음이라면 클릭!)", expanded=False):
+    st.markdown("""
+    ### 1단계: Replicate 가입 (10초)
+    👉 [Replicate 가입하기](https://replicate.com/signin)
+    - Google 또는 GitHub 계정으로 바로 가입 가능
+    
+    ### 2단계: API 키 복사
+    👉 [API 키 페이지](https://replicate.com/account/api-tokens)
+    - 로그인 후 위 링크 클릭
+    - `r8_`로 시작하는 키 복사
+    
+    ### 3단계: 결제 수단 등록 (선택)
+    👉 [결제 설정](https://replicate.com/account/billing)
+    - $5 정도 충전하면 영상 50개 이상 생성 가능
+    - 무료 크레딧으로 먼저 테스트해보세요!
+    
+    ---
+    💡 **비용 안내**: LTX-2는 영상 1개(4초)당 약 $0.08 (≈100원)
+    """)
+
+# API 키 입력
+api_key = st.text_input(
+    "🔑 Replicate API 키",
+    type="password",
+    placeholder="r8_... (위 가이드 참고)",
+    help="Replicate에서 발급받은 API 키를 입력하세요"
+)
+
+# 키 입력 안 했을 때 안내
+if not api_key:
+    st.info("👆 API 키를 입력하면 시작할 수 있어요!")
 
 # 모드 선택
 mode = st.radio("모드 선택", ["📝 텍스트 → 영상", "🖼️ 이미지 → 영상"], horizontal=True)
@@ -460,3 +490,4 @@ if 'i2v_results' in st.session_state and st.session_state['i2v_results']:
                     st.code(r['url'], language=None)
                 else:
                     st.error(r.get('error', '실패'))
+
