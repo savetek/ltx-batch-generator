@@ -25,7 +25,6 @@ with st.expander("🔑 API 키 발급 방법 (처음이라면 클릭!)", expande
     ### 3단계: 결제 수단 등록 (선택)
     👉 [결제 설정](https://replicate.com/account/billing)
     - $5 정도 충전하면 영상 50개 이상 생성 가능
-    - 무료 크레딧으로 먼저 테스트해보세요!
     """)
 
 # API 키 입력
@@ -52,10 +51,17 @@ MODELS = {
         "audio": True,
         "supports_image": True
     },
+    "Grok Imagine 💰": {
+        "id": "xai/grok-imagine-video",
+        "cost": "$0.05/초",
+        "desc": "가성비 최고, 오디오 포함",
+        "audio": True,
+        "supports_image": True
+    },
     "Kling 2.6 💰💰": {
         "id": "kwaivgi/kling-v2.6",
         "cost": "$0.07/초",
-        "desc": "가성비 좋음, 오디오 포함",
+        "desc": "안정적, 오디오 포함",
         "audio": True,
         "supports_image": True
     },
@@ -66,19 +72,19 @@ MODELS = {
         "audio": True,
         "supports_image": True
     },
-    "Sora 2 Pro 💰💰💰": {
-        "id": "openai/sora-2-pro",
-        "cost": "$0.30/초",
-        "desc": "최고 퀄리티, 오디오 포함",
-        "audio": True,
-        "supports_image": True
-    },
     "Veo 3 Fast 💰💰💰": {
         "id": "google/veo-3-fast",
         "cost": "$0.15/초",
         "desc": "고퀄리티, 립싱크 강점",
         "audio": True,
         "supports_image": False
+    },
+    "Sora 2 Pro 💰💰💰": {
+        "id": "openai/sora-2-pro",
+        "cost": "$0.30/초",
+        "desc": "최고 퀄리티, 오디오 포함",
+        "audio": True,
+        "supports_image": True
     },
     "Veo 3 Standard 💰💰💰💰": {
         "id": "google/veo-3",
@@ -102,16 +108,19 @@ with col2:
     model_info = MODELS[selected_model]
     st.info(f"**{model_info['cost']}** — {model_info['desc']}")
 
+model_id = model_info["id"]
+
 # 비용 비교표
 with st.expander("💰 모델별 비용 비교", expanded=False):
     st.markdown("""
     | 모델 | 초당 비용 | 10초 영상 | 오디오 | 특징 |
     |------|----------|----------|--------|------|
     | **LTX-2 Distilled** | $0.02 | $0.20 | ✅ | 가장 저렴, 빠름 |
-    | **Kling 2.6** | $0.07 | $0.70 | ✅ | 가성비 좋음 |
+    | **Grok Imagine** | $0.05 | $0.50 | ✅ | 가성비 최고 |
+    | **Kling 2.6** | $0.07 | $0.70 | ✅ | 안정적 |
     | **Sora 2 Standard** | $0.10 | $1.00 | ✅ | 퀄리티 대비 가성비 |
-    | **Sora 2 Pro** | $0.30 | $3.00 | ✅ | 최고 퀄리티 |
     | **Veo 3 Fast** | $0.15 | $1.50 | ✅ | 립싱크 강점 |
+    | **Sora 2 Pro** | $0.30 | $3.00 | ✅ | 최고 퀄리티 |
     | **Veo 3 Standard** | $0.40 | $4.00 | ✅ | 최고급 |
     """)
 
@@ -142,17 +151,50 @@ golden retriever, happy expression""",
         label_visibility="collapsed"
     )
 
-    # 설정
+    # ===== 모델별 설정 =====
     st.markdown("#### ⚙️ 설정")
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        width = st.selectbox("가로", [512, 768, 1024, 1280], index=1)
-    with col2:
-        height = st.selectbox("세로", [512, 576, 720, 768], index=0)
-    with col3:
-        steps = st.slider("스텝", 4, 20, 8)
-    with col4:
-        frames = st.selectbox("프레임", [49, 97, 129], index=1, help="49≈2초, 97≈4초, 129≈5초")
+    
+    # 설정값 저장용 변수
+    settings = {}
+    
+    if "ltx" in model_id:
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            settings['width'] = st.selectbox("가로", [512, 768, 1024, 1280], index=1, key="t2v_width")
+        with col2:
+            settings['height'] = st.selectbox("세로", [512, 576, 720, 768], index=0, key="t2v_height")
+        with col3:
+            settings['steps'] = st.slider("스텝", 4, 20, 8, key="t2v_steps")
+        with col4:
+            settings['frames'] = st.selectbox("프레임", [49, 97, 129], index=1, help="49≈2초, 97≈4초, 129≈5초", key="t2v_frames")
+    
+    elif "grok" in model_id:
+        col1, col2 = st.columns(2)
+        with col1:
+            settings['duration'] = st.selectbox("길이 (초)", [5, 10, 15], index=1, key="t2v_duration")
+        with col2:
+            settings['aspect_ratio'] = st.selectbox("화면 비율", ["16:9", "9:16", "1:1"], index=0, key="t2v_aspect")
+    
+    elif "kling" in model_id:
+        col1, col2 = st.columns(2)
+        with col1:
+            settings['duration'] = st.selectbox("길이 (초)", [5, 10], index=0, key="t2v_duration")
+        with col2:
+            settings['aspect_ratio'] = st.selectbox("화면 비율", ["16:9", "9:16", "1:1"], index=0, key="t2v_aspect")
+    
+    elif "sora" in model_id:
+        col1, col2 = st.columns(2)
+        with col1:
+            settings['duration'] = st.selectbox("길이 (초)", [5, 10, 15], index=1, key="t2v_duration")
+        with col2:
+            settings['resolution'] = st.selectbox("해상도", ["480p", "720p", "1080p"], index=1, key="t2v_resolution")
+    
+    elif "veo" in model_id:
+        col1, col2 = st.columns(2)
+        with col1:
+            settings['duration'] = st.selectbox("길이 (초)", [5, 8], index=1, key="t2v_duration")
+        with col2:
+            settings['aspect_ratio'] = st.selectbox("화면 비율", ["16:9", "9:16"], index=0, key="t2v_aspect")
 
     # 프롬프트 파싱
     def parse_prompts(text):
@@ -179,7 +221,6 @@ golden retriever, happy expression""",
             st.error("프롬프트를 입력하세요")
         else:
             prompts = parse_prompts(prompts_text)
-            model_id = MODELS[selected_model]["id"]
             st.info(f"총 {len(prompts)}개 영상 생성 시작... (모델: {selected_model})")
             
             headers = {"Authorization": f"Token {api_key}", "Content-Type": "application/json"}
@@ -190,17 +231,36 @@ golden retriever, happy expression""",
             for i, prompt in enumerate(prompts):
                 status.info(f"⏳ {i+1}/{len(prompts)} 생성 중: {prompt[:50]}...")
                 
-                # 모델별 입력 파라미터 조정
+                # 모델별 입력 파라미터
                 input_params = {"prompt": prompt}
                 
                 if "ltx" in model_id:
-                    input_params.update({"width": width, "height": height, "num_frames": frames, "num_inference_steps": steps})
+                    input_params.update({
+                        "width": settings['width'],
+                        "height": settings['height'],
+                        "num_frames": settings['frames'],
+                        "num_inference_steps": settings['steps']
+                    })
+                elif "grok" in model_id:
+                    input_params.update({
+                        "duration": settings['duration'],
+                        "aspect_ratio": settings['aspect_ratio']
+                    })
                 elif "kling" in model_id:
-                    input_params.update({"duration": 5, "aspect_ratio": "16:9"})
+                    input_params.update({
+                        "duration": settings['duration'],
+                        "aspect_ratio": settings['aspect_ratio']
+                    })
                 elif "sora" in model_id:
-                    input_params.update({"duration": 10, "resolution": "720p"})
+                    input_params.update({
+                        "duration": settings['duration'],
+                        "resolution": settings['resolution']
+                    })
                 elif "veo" in model_id:
-                    input_params.update({"duration": 8})
+                    input_params.update({
+                        "duration": settings['duration'],
+                        "aspect_ratio": settings['aspect_ratio']
+                    })
                 
                 resp = requests.post(
                     f"https://api.replicate.com/v1/models/{model_id}/predictions",
@@ -221,7 +281,7 @@ golden retriever, happy expression""",
                 
                 # 폴링
                 video_url = None
-                for _ in range(180):  # 최대 15분
+                for _ in range(180):
                     time.sleep(5)
                     r = requests.get(f"https://api.replicate.com/v1/predictions/{pred_id}", headers=headers).json()
                     if r.get("status") == "succeeded":
@@ -249,9 +309,8 @@ golden retriever, happy expression""",
 
 # ==================== 이미지 → 영상 ====================
 else:
-    # 이미지→영상 지원 체크
     if not model_info['supports_image']:
-        st.error(f"❌ {selected_model}은 이미지→영상을 지원하지 않습니다.")
+        st.error(f"❌ {selected_model}은 이미지→영상을 지원하지 않습니다. 다른 모델을 선택하세요.")
     else:
         st.markdown("### 🖼️ 이미지 → 영상")
         
@@ -290,7 +349,7 @@ else:
                 st.session_state['i2v_items'] = []
                 st.rerun()
         
-        # 프롬프트 입력 방식 토글
+        # 프롬프트 입력
         if st.session_state['i2v_items']:
             st.markdown(f"**📋 업로드된 이미지: {len(st.session_state['i2v_items'])}개**")
             
@@ -338,11 +397,11 @@ gentle pan to the right, soft lighting""",
                         st.session_state['i2v_items'][i]['prompt'] = parsed[i] if i < len(parsed) else ""
                 
                 if len(parsed) < len(st.session_state['i2v_items']):
-                    st.warning(f"⚠️ 프롬프트 {len(parsed)}개 < 이미지 {len(st.session_state['i2v_items'])}개 — 부족한 이미지는 기본 프롬프트 사용")
+                    st.warning(f"⚠️ 프롬프트 {len(parsed)}개 < 이미지 {len(st.session_state['i2v_items'])}개")
                 elif len(parsed) > len(st.session_state['i2v_items']):
-                    st.info(f"ℹ️ 프롬프트 {len(parsed)}개 > 이미지 {len(st.session_state['i2v_items'])}개 — 초과 프롬프트는 무시됨")
+                    st.info(f"ℹ️ 프롬프트 {len(parsed)}개 > 이미지 {len(st.session_state['i2v_items'])}개")
                 else:
-                    st.success(f"✅ 프롬프트 {len(parsed)}개 = 이미지 {len(st.session_state['i2v_items'])}개 — 완벽 매칭!")
+                    st.success(f"✅ 완벽 매칭!")
             
             else:
                 st.caption("각 이미지에 개별적으로 프롬프트를 입력하세요")
@@ -362,15 +421,40 @@ gentle pan to the right, soft lighting""",
                             st.session_state['i2v_items'][i]['prompt'] = prompt
                         st.markdown("---")
         
-        # 설정
+        # ===== 모델별 설정 (이미지→영상) =====
         st.markdown("#### ⚙️ 설정")
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            i2v_steps = st.slider("스텝", 4, 20, 8, key="i2v_steps")
-        with col2:
-            i2v_frames = st.selectbox("프레임 수", [49, 97, 129], index=1, help="49≈2초, 97≈4초, 129≈5초")
-        with col3:
-            i2v_resolution = st.selectbox("최대 해상도", ["512x512", "768x512", "1024x576", "1280x720"], index=1, key="i2v_res", help="높을수록 비용 증가")
+        
+        i2v_settings = {}
+        
+        if "ltx" in model_id:
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                i2v_settings['steps'] = st.slider("스텝", 4, 20, 8, key="i2v_steps")
+            with col2:
+                i2v_settings['frames'] = st.selectbox("프레임", [49, 97, 129], index=1, help="49≈2초, 97≈4초, 129≈5초", key="i2v_frames")
+            with col3:
+                i2v_settings['resolution'] = st.selectbox("최대 해상도", ["512x512", "768x512", "1024x576", "1280x720"], index=1, key="i2v_res")
+        
+        elif "grok" in model_id:
+            col1, col2 = st.columns(2)
+            with col1:
+                i2v_settings['duration'] = st.selectbox("길이 (초)", [5, 10, 15], index=1, key="i2v_duration")
+            with col2:
+                i2v_settings['aspect_ratio'] = st.selectbox("화면 비율", ["16:9", "9:16", "1:1"], index=0, key="i2v_aspect")
+        
+        elif "kling" in model_id:
+            col1, col2 = st.columns(2)
+            with col1:
+                i2v_settings['duration'] = st.selectbox("길이 (초)", [5, 10], index=0, key="i2v_duration")
+            with col2:
+                i2v_settings['aspect_ratio'] = st.selectbox("화면 비율", ["16:9", "9:16", "1:1"], index=0, key="i2v_aspect")
+        
+        elif "sora" in model_id:
+            col1, col2 = st.columns(2)
+            with col1:
+                i2v_settings['duration'] = st.selectbox("길이 (초)", [5, 10, 15], index=1, key="i2v_duration")
+            with col2:
+                i2v_settings['resolution'] = st.selectbox("해상도", ["480p", "720p", "1080p"], index=1, key="i2v_resolution")
 
         # 생성 버튼
         if st.button("🚀 이미지→영상 생성 시작", type="primary", use_container_width=True, key="i2v_btn"):
@@ -380,10 +464,7 @@ gentle pan to the right, soft lighting""",
                 st.error("이미지를 업로드하세요")
             else:
                 items = st.session_state['i2v_items']
-                model_id = MODELS[selected_model]["id"]
                 st.info(f"총 {len(items)}개 영상 생성 시작... (모델: {selected_model})")
-                
-                res_w, res_h = map(int, i2v_resolution.split('x'))
                 
                 headers = {"Authorization": f"Token {api_key}", "Content-Type": "application/json"}
                 results = []
@@ -393,28 +474,34 @@ gentle pan to the right, soft lighting""",
                 for i, item in enumerate(items):
                     status.info(f"⏳ {i+1}/{len(items)} 생성 중: {item['name']}...")
                     
-                    # 모델별 입력 파라미터 조정
+                    # 모델별 입력 파라미터
                     input_params = {
-                        "prompt": item["prompt"] or "slow gentle camera movement"
+                        "prompt": item["prompt"] or "slow gentle camera movement",
+                        "image": item["data_uri"]
                     }
                     
                     if "ltx" in model_id:
+                        res_w, res_h = map(int, i2v_settings['resolution'].split('x'))
                         input_params.update({
-                            "image": item["data_uri"],
                             "width": res_w,
                             "height": res_h,
-                            "num_frames": i2v_frames,
-                            "num_inference_steps": i2v_steps
+                            "num_frames": i2v_settings['frames'],
+                            "num_inference_steps": i2v_settings['steps']
+                        })
+                    elif "grok" in model_id:
+                        input_params.update({
+                            "duration": i2v_settings['duration'],
+                            "aspect_ratio": i2v_settings['aspect_ratio']
                         })
                     elif "kling" in model_id:
                         input_params.update({
-                            "image": item["data_uri"],
-                            "duration": 5
+                            "duration": i2v_settings['duration'],
+                            "aspect_ratio": i2v_settings['aspect_ratio']
                         })
                     elif "sora" in model_id:
                         input_params.update({
-                            "image": item["data_uri"],
-                            "duration": 10
+                            "duration": i2v_settings['duration'],
+                            "resolution": i2v_settings['resolution']
                         })
                     
                     resp = requests.post(
