@@ -10,671 +10,606 @@ st.set_page_config(page_title="AI 영상 일괄 생성기", page_icon="🎬", la
 
 st.title("🎬 AI 영상 일괄 생성기")
 
-# ==================== API 키 가이드 ====================
-with st.expander("🔑 API 키 발급 방법 (처음이라면 클릭!)", expanded=False):
+# API 키 안내
+with st.expander("🔑 API 키 발급 방법 (처음 사용자는 클릭)", expanded=False):
     st.markdown("""
-    ### 1단계: Replicate 가입 (10초)
-    👉 [Replicate 가입하기](https://replicate.com/signin)
-    - Google 또는 GitHub 계정으로 바로 가입 가능
+    ### Replicate API 키 발급 (1분)
     
-    ### 2단계: API 키 복사
-    👉 [API 키 페이지](https://replicate.com/account/api-tokens)
-    - 로그인 후 위 링크 클릭
-    - `r8_`로 시작하는 키 복사
+    1. **회원가입**: [Replicate 가입하기](https://replicate.com/signin) (Google/GitHub 계정으로 10초 완료)
+    2. **API 키 복사**: [API 토큰 페이지](https://replicate.com/account/api-tokens)에서 키 복사 (`r8_`로 시작)
+    3. **결제 등록** (선택): [결제 페이지](https://replicate.com/account/billing)에서 $5 충전 → 약 50개 영상 생성 가능
     
-    ### 3단계: 결제 수단 등록 (선택)
-    👉 [결제 설정](https://replicate.com/account/billing)
-    - $5 정도 충전하면 영상 50개 이상 생성 가능
+    💡 **비용**: 모델별로 다름 (아래 비용 비교표 참고)
     """)
 
-# API 키 입력
-api_key = st.text_input(
-    "🔑 Replicate API 키",
-    type="password",
-    placeholder="r8_... (위 가이드 참고)",
-    help="Replicate에서 발급받은 API 키를 입력하세요"
-)
+api_key = st.text_input("🔑 Replicate API 키", type="password", placeholder="r8_...")
 
-if not api_key:
-    st.info("👆 API 키를 입력하면 시작할 수 있어요!")
-
-st.markdown("---")
-
-# ==================== 모델 선택 ====================
-st.markdown("### 🤖 모델 선택")
-
+# 모델 정보
 MODELS = {
-    "LTX-2 Distilled 💰": {
+    "🚀 LTX-2 Distilled ($0.02/초) - 가장 저렴, 빠름": {
         "id": "lightricks/ltx-2-distilled",
-        "cost": "$0.02/초",
-        "desc": "가장 저렴, 빠름, 오디오 포함",
+        "cost": 0.02,
         "audio": True,
-        "supports_image": True
+        "image_support": True
     },
-    "Grok Imagine 💰": {
+    "🎯 Grok Imagine ($0.05/초) - 가성비 최고": {
         "id": "xai/grok-imagine-video",
-        "cost": "$0.05/초",
-        "desc": "가성비 최고, 오디오 포함",
+        "cost": 0.05,
         "audio": True,
-        "supports_image": True
+        "image_support": True
     },
-    "Kling 2.6 💰💰": {
+    "🎬 Kling 2.6 ($0.07/초) - 안정적 품질": {
         "id": "kwaivgi/kling-v2.6",
-        "cost": "$0.07/초",
-        "desc": "안정적, 오디오 포함",
+        "cost": 0.07,
         "audio": True,
-        "supports_image": True
+        "image_support": True
     },
-    "Sora 2 Standard 💰💰": {
+    "✨ Sora 2 Standard ($0.10/초) - 고품질": {
         "id": "openai/sora-2",
-        "cost": "$0.10/초",
-        "desc": "고퀄리티, 오디오 포함",
+        "cost": 0.10,
         "audio": True,
-        "supports_image": True
+        "image_support": True
     },
-    "Veo 3 Fast 💰💰💰": {
+    "🎤 Seedance 1.5 Pro ($0.15/초) - 립싱크+다국어": {
+        "id": "bytedance/seedance-1.5-pro",
+        "cost": 0.15,
+        "audio": True,
+        "image_support": True
+    },
+    "🌟 Veo 3 Fast ($0.15/초) - 립싱크 강점": {
         "id": "google/veo-3-fast",
-        "cost": "$0.15/초",
-        "desc": "고퀄리티, 립싱크 강점",
+        "cost": 0.15,
         "audio": True,
-        "supports_image": False
+        "image_support": False
     },
-    "Sora 2 Pro 💰💰💰": {
+    "💎 Sora 2 Pro ($0.30/초) - 최고 품질": {
         "id": "openai/sora-2-pro",
-        "cost": "$0.30/초",
-        "desc": "최고 퀄리티, 오디오 포함",
+        "cost": 0.30,
         "audio": True,
-        "supports_image": True
+        "image_support": True
     },
-    "Veo 3 Standard 💰💰💰💰": {
+    "👑 Veo 3 Standard ($0.40/초) - 프리미엄": {
         "id": "google/veo-3",
-        "cost": "$0.40/초",
-        "desc": "최고급, 오디오+립싱크",
+        "cost": 0.40,
         "audio": True,
-        "supports_image": False
+        "image_support": False
     }
 }
 
-col1, col2 = st.columns([2, 3])
-with col1:
-    selected_model = st.selectbox(
-        "모델 선택",
-        list(MODELS.keys()),
-        index=0,
-        label_visibility="collapsed"
-    )
-
-with col2:
-    model_info = MODELS[selected_model]
-    st.info(f"**{model_info['cost']}** — {model_info['desc']}")
-
+# 모델 선택
+selected_model = st.selectbox("🤖 모델 선택", list(MODELS.keys()))
+model_info = MODELS[selected_model]
 model_id = model_info["id"]
 
 # 비용 비교표
-with st.expander("💰 모델별 비용 비교", expanded=False):
+with st.expander("💰 모델별 비용 비교"):
     st.markdown("""
     | 모델 | 초당 비용 | 10초 영상 | 오디오 | 특징 |
     |------|----------|----------|--------|------|
-    | **LTX-2 Distilled** | $0.02 | $0.20 | ✅ | 가장 저렴, 빠름 |
-    | **Grok Imagine** | $0.05 | $0.50 | ✅ | 가성비 최고 |
-    | **Kling 2.6** | $0.07 | $0.70 | ✅ | 안정적 |
-    | **Sora 2 Standard** | $0.10 | $1.00 | ✅ | 퀄리티 대비 가성비 |
-    | **Veo 3 Fast** | $0.15 | $1.50 | ✅ | 립싱크 강점 |
-    | **Sora 2 Pro** | $0.30 | $3.00 | ✅ | 최고 퀄리티 |
-    | **Veo 3 Standard** | $0.40 | $4.00 | ✅ | 최고급 |
+    | LTX-2 Distilled | $0.02 | $0.20 | ✅ | 가장 저렴, 빠름 |
+    | Grok Imagine | $0.05 | $0.50 | ✅ | 가성비 최고 |
+    | Kling 2.6 | $0.07 | $0.70 | ✅ | 안정적 품질 |
+    | Sora 2 Standard | $0.10 | $1.00 | ✅ | 고품질 |
+    | **Seedance 1.5 Pro** | $0.15 | $1.50 | ✅ | **립싱크+다국어** |
+    | Veo 3 Fast | $0.15 | $1.50 | ✅ | 립싱크 강점 |
+    | Sora 2 Pro | $0.30 | $3.00 | ✅ | 최고 품질 |
+    | Veo 3 Standard | $0.40 | $4.00 | ✅ | 프리미엄 |
     """)
-
-st.markdown("---")
 
 # 모드 선택
 mode = st.radio("모드 선택", ["📝 텍스트 → 영상", "🖼️ 이미지 → 영상"], horizontal=True)
 
-# 이미지→영상 지원 안 하는 모델 체크
-if mode == "🖼️ 이미지 → 영상" and not model_info['supports_image']:
-    st.warning(f"⚠️ {selected_model}은 이미지→영상을 지원하지 않아요. 다른 모델을 선택하거나 텍스트→영상을 사용하세요.")
+# 이미지→영상 지원 체크
+if mode == "🖼️ 이미지 → 영상" and not model_info["image_support"]:
+    st.warning(f"⚠️ {selected_model.split('(')[0]}은 이미지→영상을 지원하지 않습니다. 다른 모델을 선택해주세요.")
 
 st.markdown("---")
 
-# ==================== 텍스트 → 영상 ====================
+# ZIP 다운로드 함수
+def create_zip_t2v(results):
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+        for idx, r in enumerate(results):
+            if r['status'] == 'success' and r.get('url'):
+                try:
+                    video_data = requests.get(r['url'], timeout=60).content
+                    filename = f"{idx+1:03d}.mp4"
+                    zf.writestr(filename, video_data)
+                except:
+                    pass
+    zip_buffer.seek(0)
+    return zip_buffer
+
+def create_zip_i2v(results):
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+        for r in results:
+            if r['status'] == 'success' and r.get('url'):
+                try:
+                    video_data = requests.get(r['url'], timeout=60).content
+                    original_name = r.get('name', 'video')
+                    base_name = os.path.splitext(original_name)[0]
+                    filename = f"{base_name}.mp4"
+                    zf.writestr(filename, video_data)
+                except:
+                    pass
+    zip_buffer.seek(0)
+    return zip_buffer
+
+# ========== 텍스트 → 영상 ==========
 if mode == "📝 텍스트 → 영상":
-    st.markdown("### 📝 프롬프트 입력")
-    st.caption("빈 줄(엔터 두 번)로 프롬프트를 구분하세요")
-
-    prompts_text = st.text_area(
-        "프롬프트 목록",
-        height=200,
-        placeholder="""A cat walking on the street, cinematic,
-detailed fur, soft lighting
-
-A dog playing in the park, sunny day,
-golden retriever, happy expression""",
-        label_visibility="collapsed"
-    )
-
-    # ===== 모델별 설정 =====
-    st.markdown("#### ⚙️ 설정")
+    st.subheader("📝 텍스트 → 영상 생성")
     
-    # 설정값 저장용 변수
-    settings = {}
+    prompts_text = st.text_area(
+        "프롬프트 입력 (빈 줄로 구분)",
+        height=200,
+        placeholder="A cat walking on the street, cinematic\n\nA dog playing in the park, sunny day"
+    )
+    
+    # 모델별 설정
+    st.markdown("#### ⚙️ 설정")
     
     if "ltx" in model_id:
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            settings['width'] = st.selectbox("가로", [512, 768, 1024, 1280], index=1, key="t2v_width")
+            width = st.selectbox("가로", [512, 768, 1024, 1280], index=1)
         with col2:
-            settings['height'] = st.selectbox("세로", [512, 576, 720, 768], index=0, key="t2v_height")
+            height = st.selectbox("세로", [512, 576, 720, 768], index=0)
         with col3:
-            settings['steps'] = st.slider("스텝", 4, 20, 8, key="t2v_steps")
+            steps = st.slider("스텝", 4, 20, 8)
         with col4:
-            settings['frames'] = st.selectbox("프레임", [49, 97, 129], index=1, help="49≈2초, 97≈4초, 129≈5초", key="t2v_frames")
+            frames = st.selectbox("프레임", [49, 97, 129], index=1, help="49≈2초, 97≈4초, 129≈5초")
     
     elif "grok" in model_id:
         col1, col2 = st.columns(2)
         with col1:
-            settings['duration'] = st.selectbox("길이 (초)", [5, 10, 15], index=1, key="t2v_duration")
+            duration = st.selectbox("영상 길이", [5, 10, 15], index=1, help="초 단위")
         with col2:
-            settings['aspect_ratio'] = st.selectbox("화면 비율", ["16:9", "9:16", "1:1"], index=0, key="t2v_aspect")
+            aspect_ratio = st.selectbox("화면 비율", ["16:9", "9:16", "1:1"], index=0)
     
     elif "kling" in model_id:
         col1, col2 = st.columns(2)
         with col1:
-            settings['duration'] = st.selectbox("길이 (초)", [5, 10], index=0, key="t2v_duration")
+            duration = st.selectbox("영상 길이", [5, 10], index=1, help="초 단위")
         with col2:
-            settings['aspect_ratio'] = st.selectbox("화면 비율", ["16:9", "9:16", "1:1"], index=0, key="t2v_aspect")
+            aspect_ratio = st.selectbox("화면 비율", ["16:9", "9:16", "1:1"], index=0)
     
     elif "sora" in model_id:
         col1, col2 = st.columns(2)
         with col1:
-            settings['duration'] = st.selectbox("길이 (초)", [5, 10, 15], index=1, key="t2v_duration")
+            duration = st.selectbox("영상 길이", [5, 10, 15], index=1, help="초 단위")
         with col2:
-            settings['resolution'] = st.selectbox("해상도", ["480p", "720p", "1080p"], index=1, key="t2v_resolution")
+            resolution = st.selectbox("해상도", ["480p", "720p", "1080p"], index=1)
+    
+    elif "seedance" in model_id:
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            duration = st.selectbox("영상 길이", [5, 10], index=1, help="초 단위")
+        with col2:
+            resolution = st.selectbox("해상도", ["480p", "720p", "1080p"], index=2)
+        with col3:
+            language = st.selectbox("음성 언어", ["Korean", "English", "Japanese", "Chinese", "Spanish"], index=0)
     
     elif "veo" in model_id:
         col1, col2 = st.columns(2)
         with col1:
-            settings['duration'] = st.selectbox("길이 (초)", [5, 8], index=1, key="t2v_duration")
+            duration = st.selectbox("영상 길이", [5, 8], index=1, help="초 단위")
         with col2:
-            settings['aspect_ratio'] = st.selectbox("화면 비율", ["16:9", "9:16"], index=0, key="t2v_aspect")
-
+            aspect_ratio = st.selectbox("화면 비율", ["16:9", "9:16"], index=0)
+    
     # 프롬프트 파싱
     def parse_prompts(text):
-        chunks = text.strip().split('\n\n')
+        blocks = text.strip().split('\n\n')
         prompts = []
-        for chunk in chunks:
-            prompt = ' '.join(line.strip() for line in chunk.strip().split('\n') if line.strip())
+        for block in blocks:
+            prompt = ' '.join(block.strip().split('\n'))
             if prompt:
                 prompts.append(prompt)
         return prompts
-
-    # 미리보기
-    if prompts_text.strip():
-        prompts_preview = parse_prompts(prompts_text)
-        st.markdown(f"**📋 인식된 프롬프트: {len(prompts_preview)}개**")
-        for i, p in enumerate(prompts_preview):
-            st.caption(f"{i+1}. {p[:80]}{'...' if len(p)>80 else ''}")
-
-    # 생성 버튼
-    if st.button("🚀 전체 생성 시작", type="primary", use_container_width=True, key="t2v_btn"):
+    
+    prompts = parse_prompts(prompts_text)
+    
+    if prompts:
+        st.info(f"📋 {len(prompts)}개 프롬프트 감지됨")
+    
+    # 생성 시작
+    if st.button("🚀 전체 생성 시작", type="primary", key="t2v_start"):
         if not api_key:
-            st.error("API 키를 입력하세요")
-        elif not prompts_text.strip():
-            st.error("프롬프트를 입력하세요")
+            st.error("API 키를 입력해주세요")
+        elif not prompts:
+            st.error("프롬프트를 입력해주세요")
         else:
-            prompts = parse_prompts(prompts_text)
-            st.info(f"총 {len(prompts)}개 영상 생성 시작... (모델: {selected_model})")
-            
-            headers = {"Authorization": f"Token {api_key}", "Content-Type": "application/json"}
             results = []
             progress = st.progress(0)
             status = st.empty()
             
-            for i, prompt in enumerate(prompts):
-                status.info(f"⏳ {i+1}/{len(prompts)} 생성 중: {prompt[:50]}...")
+            for idx, prompt in enumerate(prompts):
+                status.text(f"생성 중... {idx+1}/{len(prompts)}: {prompt[:50]}...")
                 
-                # 모델별 입력 파라미터
-                input_params = {"prompt": prompt}
-                
+                # 모델별 파라미터 구성
                 if "ltx" in model_id:
-                    input_params.update({
-                        "width": settings['width'],
-                        "height": settings['height'],
-                        "num_frames": settings['frames'],
-                        "num_inference_steps": settings['steps']
-                    })
+                    input_params = {
+                        "prompt": prompt,
+                        "width": width,
+                        "height": height,
+                        "num_frames": frames,
+                        "num_inference_steps": steps
+                    }
                 elif "grok" in model_id:
-                    input_params.update({
-                        "duration": settings['duration'],
-                        "aspect_ratio": settings['aspect_ratio']
-                    })
+                    input_params = {
+                        "prompt": prompt,
+                        "duration": duration,
+                        "aspect_ratio": aspect_ratio
+                    }
                 elif "kling" in model_id:
-                    input_params.update({
-                        "duration": settings['duration'],
-                        "aspect_ratio": settings['aspect_ratio']
-                    })
+                    input_params = {
+                        "prompt": prompt,
+                        "duration": duration,
+                        "aspect_ratio": aspect_ratio
+                    }
                 elif "sora" in model_id:
-                    input_params.update({
-                        "duration": settings['duration'],
-                        "resolution": settings['resolution']
-                    })
+                    input_params = {
+                        "prompt": prompt,
+                        "duration": duration,
+                        "resolution": resolution
+                    }
+                elif "seedance" in model_id:
+                    input_params = {
+                        "prompt": prompt,
+                        "duration": duration,
+                        "resolution": resolution,
+                        "language": language.lower()
+                    }
                 elif "veo" in model_id:
-                    input_params.update({
-                        "duration": settings['duration'],
-                        "aspect_ratio": settings['aspect_ratio']
-                    })
-                
-                resp = requests.post(
-                    f"https://api.replicate.com/v1/models/{model_id}/predictions",
-                    headers=headers,
-                    json={"input": input_params}
-                )
-                
-                if resp.status_code not in (200, 201):
-                    results.append({"prompt": prompt, "status": "실패", "error": resp.text[:100], "index": i})
-                    progress.progress((i+1)/len(prompts))
-                    continue
-                
-                pred_id = resp.json().get("id")
-                if not pred_id:
-                    results.append({"prompt": prompt, "status": "실패", "error": "ID 없음", "index": i})
-                    progress.progress((i+1)/len(prompts))
-                    continue
-                
-                # 폴링
-                video_url = None
-                for _ in range(180):
-                    time.sleep(5)
-                    r = requests.get(f"https://api.replicate.com/v1/predictions/{pred_id}", headers=headers).json()
-                    if r.get("status") == "succeeded":
-                        output = r.get("output")
-                        if isinstance(output, list):
-                            video_url = output[0]
-                        elif isinstance(output, dict):
-                            video_url = output.get("video", output.get("url", str(output)))
-                        else:
-                            video_url = str(output)
-                        break
-                    elif r.get("status") in ("failed", "canceled"):
-                        break
-                
-                if video_url:
-                    results.append({"prompt": prompt, "status": "성공", "url": video_url, "index": i})
+                    input_params = {
+                        "prompt": prompt,
+                        "duration": duration,
+                        "aspect_ratio": aspect_ratio
+                    }
                 else:
-                    results.append({"prompt": prompt, "status": "실패", "error": "시간 초과", "index": i})
+                    input_params = {"prompt": prompt}
                 
-                progress.progress((i+1)/len(prompts))
+                try:
+                    # API 호출
+                    response = requests.post(
+                        f"https://api.replicate.com/v1/models/{model_id}/predictions",
+                        headers={
+                            "Authorization": f"Token {api_key}",
+                            "Content-Type": "application/json"
+                        },
+                        json={"input": input_params},
+                        timeout=30
+                    )
+                    
+                    if response.status_code != 201:
+                        results.append({"prompt": prompt, "status": "error", "error": f"API 오류: {response.status_code}"})
+                        continue
+                    
+                    pred_id = response.json().get("id")
+                    if not pred_id:
+                        results.append({"prompt": prompt, "status": "error", "error": "예측 ID 없음"})
+                        continue
+                    
+                    # 폴링
+                    for _ in range(180):
+                        time.sleep(5)
+                        poll = requests.get(
+                            f"https://api.replicate.com/v1/predictions/{pred_id}",
+                            headers={"Authorization": f"Token {api_key}"}
+                        )
+                        result = poll.json()
+                        
+                        if result["status"] == "succeeded":
+                            output = result.get("output")
+                            if isinstance(output, list):
+                                url = output[0] if output else None
+                            elif isinstance(output, dict):
+                                url = output.get("video") or output.get("url")
+                            else:
+                                url = output
+                            results.append({"prompt": prompt, "status": "success", "url": url})
+                            break
+                        elif result["status"] == "failed":
+                            results.append({"prompt": prompt, "status": "error", "error": result.get("error", "실패")})
+                            break
+                    else:
+                        results.append({"prompt": prompt, "status": "error", "error": "시간 초과"})
+                
+                except Exception as e:
+                    results.append({"prompt": prompt, "status": "error", "error": str(e)})
+                
+                progress.progress((idx + 1) / len(prompts))
             
-            status.success(f"✅ 완료! 성공: {sum(1 for r in results if r['status']=='성공')}/{len(results)}")
+            status.text("✅ 완료!")
             st.session_state['results'] = results
+            
+            # 결과 표시
+            success_count = sum(1 for r in results if r['status'] == 'success')
+            st.success(f"✅ {success_count}/{len(results)} 성공")
+            
+            if success_count > 0:
+                zip_data = create_zip_t2v(results)
+                st.download_button(
+                    "📦 전체 다운로드 (ZIP)",
+                    zip_data,
+                    "videos.zip",
+                    "application/zip"
+                )
+            
+            for idx, r in enumerate(results):
+                with st.expander(f"{'✅' if r['status']=='success' else '❌'} {idx+1}. {r['prompt'][:50]}..."):
+                    if r['status'] == 'success':
+                        st.video(r['url'])
+                        st.code(r['url'])
+                    else:
+                        st.error(r.get('error', '알 수 없는 오류'))
 
-
-# ==================== 이미지 → 영상 ====================
+# ========== 이미지 → 영상 ==========
 else:
-    if not model_info['supports_image']:
-        st.error(f"❌ {selected_model}은 이미지→영상을 지원하지 않습니다. 다른 모델을 선택하세요.")
-    else:
-        st.markdown("### 🖼️ 이미지 → 영상")
-        
-        # 이미지 업로드
-        uploaded_files = st.file_uploader(
-            "이미지 업로드 (여러 개 가능)",
-            type=['png', 'jpg', 'jpeg', 'webp'],
-            accept_multiple_files=True
-        )
-        
-        # 업로드된 이미지 관리
+    st.subheader("🖼️ 이미지 → 영상 생성")
+    
+    if not model_info["image_support"]:
+        st.stop()
+    
+    # 이미지 업로드
+    uploaded_files = st.file_uploader(
+        "이미지 업로드 (여러 개 가능)",
+        type=['png', 'jpg', 'jpeg', 'webp'],
+        accept_multiple_files=True
+    )
+    
+    if uploaded_files:
         if 'i2v_items' not in st.session_state:
             st.session_state['i2v_items'] = []
         
-        # 새 파일 업로드 시 목록에 추가
-        if uploaded_files:
-            for file in uploaded_files:
-                existing_names = [item['name'] for item in st.session_state['i2v_items']]
-                if file.name not in existing_names:
-                    file_bytes = file.read()
-                    b64 = base64.b64encode(file_bytes).decode()
-                    mime = file.type or "image/png"
-                    data_uri = f"data:{mime};base64,{b64}"
-                    
-                    st.session_state['i2v_items'].append({
-                        'name': file.name,
-                        'data_uri': data_uri,
-                        'prompt': '',
-                        'preview': file_bytes
-                    })
-                    file.seek(0)
+        # 새 파일 추가
+        existing_names = {item['name'] for item in st.session_state['i2v_items']}
+        for f in uploaded_files:
+            if f.name not in existing_names:
+                data = f.read()
+                b64 = base64.b64encode(data).decode()
+                ext = f.name.split('.')[-1].lower()
+                mime = f"image/{ext}" if ext != 'jpg' else 'image/jpeg'
+                st.session_state['i2v_items'].append({
+                    'name': f.name,
+                    'data_uri': f"data:{mime};base64,{b64}",
+                    'prompt': '',
+                    'preview': data
+                })
         
-        # 목록 초기화 버튼
-        if st.session_state['i2v_items']:
-            if st.button("🗑️ 목록 초기화", key="clear_i2v"):
-                st.session_state['i2v_items'] = []
-                st.rerun()
+        if st.button("🗑️ 목록 초기화"):
+            st.session_state['i2v_items'] = []
+            st.rerun()
         
-        # 프롬프트 입력
-        if st.session_state['i2v_items']:
-            st.markdown(f"**📋 업로드된 이미지: {len(st.session_state['i2v_items'])}개**")
-            
-            prompt_mode = st.toggle("📝 프롬프트 일괄 입력", value=True, key="prompt_mode")
-            
-            if prompt_mode:
-                st.caption("빈 줄(엔터 두 번)로 구분하면 순서대로 이미지에 매칭됩니다")
-                
-                existing_prompts = "\n\n".join([item['prompt'] for item in st.session_state['i2v_items'] if item['prompt']])
-                
-                bulk_prompts = st.text_area(
-                    "프롬프트 일괄 입력",
-                    height=200,
-                    value=existing_prompts,
-                    placeholder="""camera slowly zooms in, cinematic
-
-character walks forward, smooth motion
-
-gentle pan to the right, soft lighting""",
-                    label_visibility="collapsed",
-                    key="bulk_prompts"
-                )
-                
-                def parse_bulk_prompts(text):
-                    if not text.strip():
-                        return []
-                    chunks = text.strip().split('\n\n')
-                    prompts = []
-                    for chunk in chunks:
-                        prompt = ' '.join(line.strip() for line in chunk.strip().split('\n') if line.strip())
-                        if prompt:
-                            prompts.append(prompt)
-                    return prompts
-                
-                parsed = parse_bulk_prompts(bulk_prompts)
-                
-                st.markdown("#### 🔗 매칭 미리보기")
-                
-                cols = st.columns(4)
-                for i, item in enumerate(st.session_state['i2v_items']):
-                    with cols[i % 4]:
-                        st.image(item['preview'], width=100)
-                        matched_prompt = parsed[i] if i < len(parsed) else "(프롬프트 없음)"
-                        st.caption(f"**{i+1}.** {matched_prompt[:30]}{'...' if len(matched_prompt)>30 else ''}")
-                        st.session_state['i2v_items'][i]['prompt'] = parsed[i] if i < len(parsed) else ""
-                
-                if len(parsed) < len(st.session_state['i2v_items']):
-                    st.warning(f"⚠️ 프롬프트 {len(parsed)}개 < 이미지 {len(st.session_state['i2v_items'])}개")
-                elif len(parsed) > len(st.session_state['i2v_items']):
-                    st.info(f"ℹ️ 프롬프트 {len(parsed)}개 > 이미지 {len(st.session_state['i2v_items'])}개")
-                else:
-                    st.success(f"✅ 완벽 매칭!")
-            
-            else:
-                st.caption("각 이미지에 개별적으로 프롬프트를 입력하세요")
-                
-                for i, item in enumerate(st.session_state['i2v_items']):
-                    with st.container():
-                        col1, col2 = st.columns([1, 3])
-                        with col1:
-                            st.image(item['preview'], width=120, caption=f"{i+1}. {item['name']}")
-                        with col2:
-                            prompt = st.text_input(
-                                f"프롬프트 {i+1}",
-                                value=item['prompt'],
-                                key=f"prompt_{i}",
-                                placeholder="예: camera slowly zooms in, gentle movement"
-                            )
-                            st.session_state['i2v_items'][i]['prompt'] = prompt
-                        st.markdown("---")
+        # 프롬프트 입력 방식
+        bulk_mode = st.toggle("📝 프롬프트 일괄 입력", value=True)
         
-        # ===== 모델별 설정 (이미지→영상) =====
+        if bulk_mode:
+            bulk_prompts = st.text_area(
+                "프롬프트 입력 (빈 줄로 구분, 이미지 순서대로 매칭)",
+                height=150,
+                placeholder="첫 번째 이미지 프롬프트\n\n두 번째 이미지 프롬프트"
+            )
+            
+            def parse_bulk_prompts(text):
+                blocks = text.strip().split('\n\n')
+                return [' '.join(b.strip().split('\n')) for b in blocks if b.strip()]
+            
+            prompt_list = parse_bulk_prompts(bulk_prompts)
+            
+            # 매칭 미리보기
+            st.markdown("#### 📋 매칭 미리보기")
+            items = st.session_state['i2v_items']
+            
+            if len(prompt_list) != len(items) and prompt_list:
+                st.warning(f"⚠️ 이미지 {len(items)}개, 프롬프트 {len(prompt_list)}개 - 개수가 다릅니다")
+            
+            cols = st.columns(min(4, len(items)))
+            for idx, item in enumerate(items):
+                with cols[idx % 4]:
+                    st.image(item['preview'], caption=item['name'], width=150)
+                    matched = prompt_list[idx] if idx < len(prompt_list) else "(프롬프트 없음)"
+                    st.caption(f"→ {matched[:30]}..." if len(matched) > 30 else f"→ {matched}")
+        else:
+            # 개별 입력
+            st.markdown("#### 📋 이미지별 프롬프트")
+            for idx, item in enumerate(st.session_state['i2v_items']):
+                col1, col2 = st.columns([1, 3])
+                with col1:
+                    st.image(item['preview'], caption=item['name'], width=100)
+                with col2:
+                    item['prompt'] = st.text_input(f"프롬프트 {idx+1}", key=f"prompt_{idx}", value=item['prompt'])
+        
+        # 모델별 설정
         st.markdown("#### ⚙️ 설정")
-        
-        i2v_settings = {}
         
         if "ltx" in model_id:
             col1, col2, col3 = st.columns(3)
             with col1:
-                i2v_settings['steps'] = st.slider("스텝", 4, 20, 8, key="i2v_steps")
+                i2v_steps = st.slider("스텝", 4, 20, 8, key="i2v_steps")
             with col2:
-                i2v_settings['frames'] = st.selectbox("프레임", [49, 97, 129], index=1, help="49≈2초, 97≈4초, 129≈5초", key="i2v_frames")
+                i2v_frames = st.selectbox("프레임", [49, 97, 129], index=1, key="i2v_frames")
             with col3:
-                i2v_settings['resolution'] = st.selectbox("최대 해상도", ["512x512", "768x512", "1024x576", "1280x720"], index=1, key="i2v_res")
+                i2v_resolution = st.selectbox("최대 해상도", ["512x512", "768x512", "1024x576", "1280x720"], index=1, key="i2v_res")
         
         elif "grok" in model_id:
             col1, col2 = st.columns(2)
             with col1:
-                i2v_settings['duration'] = st.selectbox("길이 (초)", [5, 10, 15], index=1, key="i2v_duration")
+                i2v_duration = st.selectbox("영상 길이", [5, 10, 15], index=1, key="i2v_dur")
             with col2:
-                i2v_settings['aspect_ratio'] = st.selectbox("화면 비율", ["16:9", "9:16", "1:1"], index=0, key="i2v_aspect")
+                i2v_aspect = st.selectbox("화면 비율", ["16:9", "9:16", "1:1"], index=0, key="i2v_asp")
         
         elif "kling" in model_id:
             col1, col2 = st.columns(2)
             with col1:
-                i2v_settings['duration'] = st.selectbox("길이 (초)", [5, 10], index=0, key="i2v_duration")
+                i2v_duration = st.selectbox("영상 길이", [5, 10], index=1, key="i2v_dur")
             with col2:
-                i2v_settings['aspect_ratio'] = st.selectbox("화면 비율", ["16:9", "9:16", "1:1"], index=0, key="i2v_aspect")
+                i2v_aspect = st.selectbox("화면 비율", ["16:9", "9:16", "1:1"], index=0, key="i2v_asp")
         
         elif "sora" in model_id:
             col1, col2 = st.columns(2)
             with col1:
-                i2v_settings['duration'] = st.selectbox("길이 (초)", [5, 10, 15], index=1, key="i2v_duration")
+                i2v_duration = st.selectbox("영상 길이", [5, 10, 15], index=1, key="i2v_dur")
             with col2:
-                i2v_settings['resolution'] = st.selectbox("해상도", ["480p", "720p", "1080p"], index=1, key="i2v_resolution")
-
-        # 생성 버튼
-        if st.button("🚀 이미지→영상 생성 시작", type="primary", use_container_width=True, key="i2v_btn"):
+                i2v_resolution = st.selectbox("해상도", ["480p", "720p", "1080p"], index=1, key="i2v_res")
+        
+        elif "seedance" in model_id:
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                i2v_duration = st.selectbox("영상 길이", [5, 10], index=1, key="i2v_dur")
+            with col2:
+                i2v_resolution = st.selectbox("해상도", ["480p", "720p", "1080p"], index=2, key="i2v_res")
+            with col3:
+                i2v_language = st.selectbox("음성 언어", ["Korean", "English", "Japanese", "Chinese", "Spanish"], index=0, key="i2v_lang")
+        
+        # 생성 시작
+        if st.button("🚀 이미지→영상 생성 시작", type="primary", key="i2v_start"):
+            items = st.session_state['i2v_items']
+            
             if not api_key:
-                st.error("API 키를 입력하세요")
-            elif not st.session_state['i2v_items']:
-                st.error("이미지를 업로드하세요")
+                st.error("API 키를 입력해주세요")
+            elif not items:
+                st.error("이미지를 업로드해주세요")
             else:
-                items = st.session_state['i2v_items']
-                st.info(f"총 {len(items)}개 영상 생성 시작... (모델: {selected_model})")
+                # 프롬프트 매칭
+                if bulk_mode:
+                    for idx, item in enumerate(items):
+                        item['prompt'] = prompt_list[idx] if idx < len(prompt_list) else ""
                 
-                headers = {"Authorization": f"Token {api_key}", "Content-Type": "application/json"}
                 results = []
                 progress = st.progress(0)
                 status = st.empty()
                 
-                for i, item in enumerate(items):
-                    status.info(f"⏳ {i+1}/{len(items)} 생성 중: {item['name']}...")
+                for idx, item in enumerate(items):
+                    status.text(f"생성 중... {idx+1}/{len(items)}: {item['name']}")
                     
-                    # 모델별 입력 파라미터
-                    input_params = {
-                        "prompt": item["prompt"] or "slow gentle camera movement",
-                        "image": item["data_uri"]
-                    }
-                    
+                    # 모델별 파라미터
                     if "ltx" in model_id:
-                        res_w, res_h = map(int, i2v_settings['resolution'].split('x'))
-                        input_params.update({
+                        res_w, res_h = map(int, i2v_resolution.split('x'))
+                        input_params = {
+                            "image": item['data_uri'],
+                            "prompt": item['prompt'] or "animate this image",
                             "width": res_w,
                             "height": res_h,
-                            "num_frames": i2v_settings['frames'],
-                            "num_inference_steps": i2v_settings['steps']
-                        })
+                            "num_frames": i2v_frames,
+                            "num_inference_steps": i2v_steps
+                        }
                     elif "grok" in model_id:
-                        input_params.update({
-                            "duration": i2v_settings['duration'],
-                            "aspect_ratio": i2v_settings['aspect_ratio']
-                        })
+                        input_params = {
+                            "image": item['data_uri'],
+                            "prompt": item['prompt'] or "animate this image",
+                            "duration": i2v_duration,
+                            "aspect_ratio": i2v_aspect
+                        }
                     elif "kling" in model_id:
-                        input_params.update({
-                            "duration": i2v_settings['duration'],
-                            "aspect_ratio": i2v_settings['aspect_ratio']
-                        })
+                        input_params = {
+                            "image": item['data_uri'],
+                            "prompt": item['prompt'] or "animate this image",
+                            "duration": i2v_duration,
+                            "aspect_ratio": i2v_aspect
+                        }
                     elif "sora" in model_id:
-                        input_params.update({
-                            "duration": i2v_settings['duration'],
-                            "resolution": i2v_settings['resolution']
-                        })
+                        input_params = {
+                            "image": item['data_uri'],
+                            "prompt": item['prompt'] or "animate this image",
+                            "duration": i2v_duration,
+                            "resolution": i2v_resolution
+                        }
+                    elif "seedance" in model_id:
+                        input_params = {
+                            "image": item['data_uri'],
+                            "prompt": item['prompt'] or "animate this image",
+                            "duration": i2v_duration,
+                            "resolution": i2v_resolution,
+                            "language": i2v_language.lower()
+                        }
+                    else:
+                        input_params = {
+                            "image": item['data_uri'],
+                            "prompt": item['prompt'] or "animate this image"
+                        }
                     
-                    resp = requests.post(
-                        f"https://api.replicate.com/v1/models/{model_id}/predictions",
-                        headers=headers,
-                        json={"input": input_params}
-                    )
-                    
-                    if resp.status_code not in (200, 201):
-                        error_msg = resp.text[:200]
-                        results.append({"item": item, "status": "실패", "error": error_msg})
-                        progress.progress((i+1)/len(items))
-                        continue
-                    
-                    pred_id = resp.json().get("id")
-                    if not pred_id:
-                        results.append({"item": item, "status": "실패", "error": "ID 없음"})
-                        progress.progress((i+1)/len(items))
-                        continue
-                    
-                    # 폴링
-                    video_url = None
-                    for _ in range(180):
-                        time.sleep(5)
-                        r = requests.get(f"https://api.replicate.com/v1/predictions/{pred_id}", headers=headers).json()
+                    try:
+                        response = requests.post(
+                            f"https://api.replicate.com/v1/models/{model_id}/predictions",
+                            headers={
+                                "Authorization": f"Token {api_key}",
+                                "Content-Type": "application/json"
+                            },
+                            json={"input": input_params},
+                            timeout=30
+                        )
                         
-                        if r.get("status") == "succeeded":
-                            output = r.get("output")
-                            if isinstance(output, list):
-                                video_url = output[0]
-                            elif isinstance(output, dict):
-                                video_url = output.get("video", output.get("url", str(output)))
-                            else:
-                                video_url = str(output)
-                            break
-                        elif r.get("status") in ("failed", "canceled"):
-                            error = r.get("error", "생성 실패")
-                            results.append({"item": item, "status": "실패", "error": str(error)[:100]})
-                            break
+                        if response.status_code != 201:
+                            results.append({"name": item['name'], "status": "error", "error": f"API 오류: {response.status_code}"})
+                            continue
+                        
+                        pred_id = response.json().get("id")
+                        if not pred_id:
+                            results.append({"name": item['name'], "status": "error", "error": "예측 ID 없음"})
+                            continue
+                        
+                        # 폴링
+                        for _ in range(180):
+                            time.sleep(5)
+                            poll = requests.get(
+                                f"https://api.replicate.com/v1/predictions/{pred_id}",
+                                headers={"Authorization": f"Token {api_key}"}
+                            )
+                            result = poll.json()
+                            
+                            if result["status"] == "succeeded":
+                                output = result.get("output")
+                                if isinstance(output, list):
+                                    url = output[0] if output else None
+                                elif isinstance(output, dict):
+                                    url = output.get("video") or output.get("url")
+                                else:
+                                    url = output
+                                results.append({
+                                    "name": item['name'],
+                                    "status": "success",
+                                    "url": url,
+                                    "preview": item['preview'],
+                                    "prompt": item['prompt']
+                                })
+                                break
+                            elif result["status"] == "failed":
+                                results.append({"name": item['name'], "status": "error", "error": result.get("error", "실패")})
+                                break
+                        else:
+                            results.append({"name": item['name'], "status": "error", "error": "시간 초과"})
                     
-                    if video_url:
-                        results.append({"item": item, "status": "성공", "url": video_url})
-                    elif not any(r.get('item', {}).get('name') == item['name'] for r in results if 'item' in r):
-                        results.append({"item": item, "status": "실패", "error": "시간 초과"})
+                    except Exception as e:
+                        results.append({"name": item['name'], "status": "error", "error": str(e)})
                     
-                    progress.progress((i+1)/len(items))
+                    progress.progress((idx + 1) / len(items))
                 
-                success_count = sum(1 for r in results if r['status'] == '성공')
-                status.success(f"✅ 완료! 성공: {success_count}/{len(results)}")
+                status.text("✅ 완료!")
                 st.session_state['i2v_results'] = results
-
-
-# ==================== 일괄 다운로드 함수 ====================
-def create_zip_t2v(results):
-    zip_buffer = io.BytesIO()
-    
-    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
-        success_idx = 0
-        for r in results:
-            if r['status'] == '성공':
-                success_idx += 1
-                video_url = r['url']
                 
-                try:
-                    video_resp = requests.get(video_url, timeout=60)
-                    if video_resp.status_code == 200:
-                        filename = f"{success_idx:03d}.mp4"
-                        zf.writestr(filename, video_resp.content)
-                except Exception as e:
-                    st.warning(f"다운로드 실패: {e}")
-    
-    zip_buffer.seek(0)
-    return zip_buffer
-
-
-def create_zip_i2v(results):
-    zip_buffer = io.BytesIO()
-    
-    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
-        for r in results:
-            if r['status'] == '성공':
-                video_url = r['url']
-                original_name = r['item']['name']
-                name_without_ext = os.path.splitext(original_name)[0]
-                filename = f"{name_without_ext}.mp4"
+                # 결과 표시
+                success_count = sum(1 for r in results if r['status'] == 'success')
+                st.success(f"✅ {success_count}/{len(results)} 성공")
                 
-                try:
-                    video_resp = requests.get(video_url, timeout=60)
-                    if video_resp.status_code == 200:
-                        zf.writestr(filename, video_resp.content)
-                except Exception as e:
-                    st.warning(f"다운로드 실패 ({filename}): {e}")
-    
-    zip_buffer.seek(0)
-    return zip_buffer
-
-
-# ==================== 결과 표시 ====================
-st.markdown("---")
-st.markdown("### 🎥 생성 결과")
-
-# 텍스트→영상 결과
-if 'results' in st.session_state and st.session_state['results']:
-    st.markdown("#### 텍스트 → 영상")
-    
-    success_list = [r for r in st.session_state['results'] if r['status'] == '성공']
-    
-    if success_list:
-        st.markdown(f"**✅ 성공: {len(success_list)}개**")
-        
-        if st.button("📦 전체 다운로드 (ZIP)", key="download_t2v", type="primary"):
-            with st.spinner("ZIP 파일 생성 중..."):
-                zip_file = create_zip_t2v(st.session_state['results'])
-                st.download_button(
-                    label="💾 ZIP 다운로드",
-                    data=zip_file,
-                    file_name="ai_videos.zip",
-                    mime="application/zip",
-                    key="zip_t2v"
-                )
-    
-    for i, r in enumerate(st.session_state['results']):
-        if r['status'] == '성공':
-            success_num = sum(1 for x in st.session_state['results'][:i+1] if x['status'] == '성공')
-            label = f"✅ {success_num:03d}.mp4 — {r['prompt'][:40]}..."
-        else:
-            label = f"❌ {r['prompt'][:50]}..."
-        
-        with st.expander(label, expanded=r['status']=='성공'):
-            if r['status'] == '성공':
-                st.video(r['url'])
-                st.code(r['url'], language=None)
-            else:
-                st.error(r.get('error', '실패'))
-
-# 이미지→영상 결과
-if 'i2v_results' in st.session_state and st.session_state['i2v_results']:
-    st.markdown("#### 이미지 → 영상")
-    
-    success_list = [r for r in st.session_state['i2v_results'] if r['status'] == '성공']
-    
-    if success_list:
-        st.markdown(f"**✅ 성공: {len(success_list)}개**")
-        
-        if st.button("📦 전체 다운로드 (ZIP)", key="download_i2v", type="primary"):
-            with st.spinner("ZIP 파일 생성 중..."):
-                zip_file = create_zip_i2v(st.session_state['i2v_results'])
-                st.download_button(
-                    label="💾 ZIP 다운로드",
-                    data=zip_file,
-                    file_name="ai_i2v_videos.zip",
-                    mime="application/zip",
-                    key="zip_i2v"
-                )
-    
-    for i, r in enumerate(st.session_state['i2v_results']):
-        original_name = r['item']['name']
-        video_name = os.path.splitext(original_name)[0] + ".mp4"
-        
-        if r['status'] == '성공':
-            label = f"✅ {video_name}"
-        else:
-            label = f"❌ {video_name}"
-        
-        with st.expander(label, expanded=r['status']=='성공'):
-            col1, col2 = st.columns(2)
-            with col1:
-                st.image(r['item']['preview'], caption=f"원본: {original_name}", width=200)
-                st.caption(f"프롬프트: {r['item']['prompt'] or '(없음)'}")
-            with col2:
-                if r['status'] == '성공':
-                    st.caption(f"📁 {video_name}")
-                    st.video(r['url'])
-                    st.code(r['url'], language=None)
-                else:
-                    st.error(r.get('error', '실패'))
+                if success_count > 0:
+                    zip_data = create_zip_i2v(results)
+                    st.download_button(
+                        "📦 전체 다운로드 (ZIP)",
+                        zip_data,
+                        "videos.zip",
+                        "application/zip"
+                    )
+                
+                for r in results:
+                    with st.expander(f"{'✅' if r['status']=='success' else '❌'} {r['name']}"):
+                        if r['status'] == 'success':
+                            col1, col2 = st.columns([1, 2])
+                            with col1:
+                                st.image(r['preview'], caption="원본", width=150)
+                            with col2:
+                                st.video(r['url'])
+                            st.caption(f"프롬프트: {r.get('prompt', '')}")
+                            st.code(r['url'])
+                        else:
+                            st.error(r.get('error', '알 수 없는 오류'))
