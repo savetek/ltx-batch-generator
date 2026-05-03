@@ -30,61 +30,71 @@ MODELS = {
         "id": "lightricks/ltx-2-distilled",
         "cost": 0.02,
         "audio": True,
-        "image_support": True
+        "image_support": True,
+        "multimodal": False
     },
     "🎯 Grok Imagine ($0.05/초) - 가성비 최고": {
         "id": "xai/grok-imagine-video",
         "cost": 0.05,
         "audio": True,
-        "image_support": True
+        "image_support": True,
+        "multimodal": False
     },
     "🎬 Kling 2.6 ($0.07/초) - 안정적 품질": {
         "id": "kwaivgi/kling-v2.6",
         "cost": 0.07,
         "audio": True,
-        "image_support": True
+        "image_support": True,
+        "multimodal": False
     },
     "⚡ Seedance 2.0 Fast ($0.08/초) - 빠른 멀티모달": {
         "id": "bytedance/seedance-2.0-fast",
         "cost": 0.08,
         "audio": True,
-        "image_support": True
+        "image_support": True,
+        "multimodal": True
     },
     "✨ Sora 2 Standard ($0.10/초) - 고품질": {
         "id": "openai/sora-2",
         "cost": 0.10,
         "audio": True,
-        "image_support": True
+        "image_support": True,
+        "multimodal": False
     },
     "🌟 Seedance 2.0 ($0.10/초) - 멀티모달+고품질": {
         "id": "bytedance/seedance-2.0",
         "cost": 0.10,
         "audio": True,
-        "image_support": True
+        "image_support": True,
+        "multimodal": True
     },
     "🎤 Seedance 1.5 Pro ($0.15/초) - 립싱크+다국어": {
         "id": "bytedance/seedance-1.5-pro",
         "cost": 0.15,
         "audio": True,
-        "image_support": True
+        "image_support": True,
+        "multimodal": False
     },
     "🌈 Veo 3 Fast ($0.15/초) - 립싱크 강점": {
         "id": "google/veo-3-fast",
         "cost": 0.15,
         "audio": True,
-        "image_support": False
+        "image_support": False,
+        "multimodal": False
     },
     "💎 Sora 2 Pro ($0.30/초) - 최고 품질": {
         "id": "openai/sora-2-pro",
         "cost": 0.30,
         "audio": True,
-        "image_support": True
+        "image_support": True,
+        "multimodal": False
     },
     "👑 Veo 3 Standard ($0.40/초) - 프리미엄": {
         "id": "google/veo-3",
         "cost": 0.40,
         "audio": True,
-        "image_support": False
+        "image_support": False,
+        "multimodal": False
     }
 }
 
@@ -113,8 +123,11 @@ with st.expander("💰 모델별 비용 비교"):
     **💡 Seedance 2.0 특별 기능**: 이미지 9개 + 영상 3개 + 오디오 3개 동시 참조 가능!
     """)
 
-# 모드 선택
-mode = st.radio("모드 선택", ["📝 텍스트 → 영상", "🖼️ 이미지 → 영상"], horizontal=True)
+# 모드 선택 - Seedance 2.0은 멀티모달 모드 추가
+if model_info.get("multimodal"):
+    mode = st.radio("모드 선택", ["📝 텍스트 → 영상", "🖼️ 이미지 → 영상", "🎨 멀티모달 (Seedance 2.0 전용)"], horizontal=True)
+else:
+    mode = st.radio("모드 선택", ["📝 텍스트 → 영상", "🖼️ 이미지 → 영상"], horizontal=True)
 
 # 이미지→영상 지원 체크
 if mode == "🖼️ 이미지 → 영상" and not model_info["image_support"]:
@@ -152,6 +165,28 @@ def create_zip_i2v(results):
                     pass
     zip_buffer.seek(0)
     return zip_buffer
+
+# 파일을 data URI로 변환하는 함수
+def file_to_data_uri(uploaded_file, file_type="image"):
+    data = uploaded_file.read()
+    b64 = base64.b64encode(data).decode()
+    
+    if file_type == "image":
+        ext = uploaded_file.name.split('.')[-1].lower()
+        mime = f"image/{ext}" if ext != 'jpg' else 'image/jpeg'
+    elif file_type == "video":
+        ext = uploaded_file.name.split('.')[-1].lower()
+        mime = f"video/{ext}"
+    elif file_type == "audio":
+        ext = uploaded_file.name.split('.')[-1].lower()
+        if ext == 'mp3':
+            mime = 'audio/mpeg'
+        else:
+            mime = f"audio/{ext}"
+    else:
+        mime = "application/octet-stream"
+    
+    return f"data:{mime};base64,{b64}", data
 
 # ========== 텍스트 → 영상 ==========
 if mode == "📝 텍스트 → 영상":
@@ -396,7 +431,7 @@ if mode == "📝 텍스트 → 영상":
                         st.error(r.get('error', '알 수 없는 오류'))
 
 # ========== 이미지 → 영상 ==========
-else:
+elif mode == "🖼️ 이미지 → 영상":
     st.subheader("🖼️ 이미지 → 영상 생성")
     
     if not model_info["image_support"]:
@@ -698,3 +733,244 @@ else:
                             st.code(r['url'])
                         else:
                             st.error(r.get('error', '알 수 없는 오류'))
+
+# ========== 멀티모달 (Seedance 2.0 전용) ==========
+elif mode == "🎨 멀티모달 (Seedance 2.0 전용)":
+    st.subheader("🎨 멀티모달 영상 생성")
+    
+    st.info("""
+    ### 💡 Seedance 2.0 멀티모달 사용법
+    
+    **참조 방식**: 프롬프트에서 `[Image1]`, `[Video1]`, `[Audio1]` 등으로 참조
+    
+    **예시 프롬프트**:
+    - `[Image1]의 캐릭터가 [Video1]의 춤 동작을 따라합니다`
+    - `[Image1] 배경에서 [Image2] 인물이 걸어갑니다, [Audio1] 음악에 맞춰`
+    - `[Video1]의 카메라 움직임을 따라 [Image1] 장면을 촬영합니다`
+    
+    **최대 입력**: 이미지 9개 + 영상 3개 + 오디오 3개
+    """)
+    
+    st.markdown("---")
+    
+    # 참조 이미지 업로드
+    st.markdown("### 🖼️ 참조 이미지 (최대 9개)")
+    ref_images = st.file_uploader(
+        "이미지 업로드",
+        type=['png', 'jpg', 'jpeg', 'webp'],
+        accept_multiple_files=True,
+        key="mm_images"
+    )
+    
+    if ref_images:
+        if len(ref_images) > 9:
+            st.warning("⚠️ 최대 9개까지만 사용됩니다")
+            ref_images = ref_images[:9]
+        
+        cols = st.columns(min(5, len(ref_images)))
+        for idx, img in enumerate(ref_images):
+            with cols[idx % 5]:
+                st.image(img, caption=f"[Image{idx+1}]", width=120)
+    
+    st.markdown("---")
+    
+    # 참조 영상 업로드
+    st.markdown("### 🎬 참조 영상 (최대 3개)")
+    ref_videos = st.file_uploader(
+        "영상 업로드",
+        type=['mp4', 'mov', 'avi', 'webm'],
+        accept_multiple_files=True,
+        key="mm_videos"
+    )
+    
+    if ref_videos:
+        if len(ref_videos) > 3:
+            st.warning("⚠️ 최대 3개까지만 사용됩니다")
+            ref_videos = ref_videos[:3]
+        
+        cols = st.columns(min(3, len(ref_videos)))
+        for idx, vid in enumerate(ref_videos):
+            with cols[idx % 3]:
+                st.video(vid)
+                st.caption(f"[Video{idx+1}]")
+    
+    st.markdown("---")
+    
+    # 참조 오디오 업로드
+    st.markdown("### 🔊 참조 오디오 (최대 3개)")
+    ref_audios = st.file_uploader(
+        "오디오 업로드",
+        type=['mp3', 'wav', 'ogg', 'm4a'],
+        accept_multiple_files=True,
+        key="mm_audios"
+    )
+    
+    if ref_audios:
+        if len(ref_audios) > 3:
+            st.warning("⚠️ 최대 3개까지만 사용됩니다")
+            ref_audios = ref_audios[:3]
+        
+        for idx, aud in enumerate(ref_audios):
+            st.audio(aud)
+            st.caption(f"[Audio{idx+1}]")
+    
+    st.markdown("---")
+    
+    # 프롬프트 입력
+    st.markdown("### 📝 프롬프트")
+    mm_prompt = st.text_area(
+        "프롬프트 입력",
+        height=150,
+        placeholder="[Image1]의 캐릭터가 [Video1]의 춤 동작을 따라하며 [Audio1] 음악에 맞춰 움직입니다. cinematic lighting, smooth camera movement",
+        key="mm_prompt"
+    )
+    
+    # 참조 태그 미리보기
+    st.markdown("#### 📋 사용 가능한 참조 태그")
+    tags = []
+    if ref_images:
+        tags.extend([f"`[Image{i+1}]`" for i in range(len(ref_images))])
+    if ref_videos:
+        tags.extend([f"`[Video{i+1}]`" for i in range(len(ref_videos))])
+    if ref_audios:
+        tags.extend([f"`[Audio{i+1}]`" for i in range(len(ref_audios))])
+    
+    if tags:
+        st.write(" ".join(tags))
+    else:
+        st.caption("참조 파일을 업로드하면 태그가 표시됩니다")
+    
+    st.markdown("---")
+    
+    # 설정
+    st.markdown("### ⚙️ 설정")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        mm_duration = st.selectbox("영상 길이", [-1, 5, 10, 15], index=2, key="mm_dur", help="-1: AI 자동 결정")
+    with col2:
+        mm_resolution = st.selectbox("해상도", ["480p", "720p"], index=1, key="mm_res")
+    with col3:
+        mm_aspect = st.selectbox("화면 비율", ["adaptive", "16:9", "9:16", "4:3", "1:1"], index=1, key="mm_asp")
+    
+    col4, col5 = st.columns(2)
+    with col4:
+        mm_audio = st.checkbox("🔊 오디오 생성", value=True, key="mm_audio")
+    with col5:
+        mm_seed = st.number_input("시드 (랜덤: -1)", min_value=-1, max_value=999999, value=-1, key="mm_seed")
+    
+    # 생성 버튼
+    if st.button("🚀 멀티모달 영상 생성", type="primary", key="mm_start"):
+        if not api_key:
+            st.error("API 키를 입력해주세요")
+        elif not mm_prompt:
+            st.error("프롬프트를 입력해주세요")
+        elif not ref_images and not ref_videos and not ref_audios:
+            st.error("최소 1개 이상의 참조 파일을 업로드해주세요")
+        else:
+            with st.spinner("🎬 멀티모달 영상 생성 중... (최대 15분 소요)"):
+                # 파일을 data URI로 변환
+                input_params = {
+                    "prompt": mm_prompt,
+                    "duration": mm_duration,
+                    "aspect_ratio": mm_aspect,
+                    "resolution": mm_resolution,
+                    "audio": mm_audio
+                }
+                
+                if mm_seed >= 0:
+                    input_params["seed"] = mm_seed
+                
+                # 이미지 변환
+                if ref_images:
+                    for idx, img in enumerate(ref_images[:9]):
+                        img.seek(0)
+                        data_uri, _ = file_to_data_uri(img, "image")
+                        input_params[f"reference_image_{idx+1}"] = data_uri
+                
+                # 영상 변환
+                if ref_videos:
+                    for idx, vid in enumerate(ref_videos[:3]):
+                        vid.seek(0)
+                        data_uri, _ = file_to_data_uri(vid, "video")
+                        input_params[f"reference_video_{idx+1}"] = data_uri
+                
+                # 오디오 변환
+                if ref_audios:
+                    for idx, aud in enumerate(ref_audios[:3]):
+                        aud.seek(0)
+                        data_uri, _ = file_to_data_uri(aud, "audio")
+                        input_params[f"reference_audio_{idx+1}"] = data_uri
+                
+                try:
+                    # API 호출
+                    response = requests.post(
+                        f"https://api.replicate.com/v1/models/{model_id}/predictions",
+                        headers={
+                            "Authorization": f"Token {api_key}",
+                            "Content-Type": "application/json"
+                        },
+                        json={"input": input_params},
+                        timeout=60
+                    )
+                    
+                    if response.status_code != 201:
+                        st.error(f"API 오류: {response.status_code} - {response.text}")
+                    else:
+                        pred_id = response.json().get("id")
+                        
+                        if pred_id:
+                            # 폴링
+                            progress = st.progress(0)
+                            status = st.empty()
+                            
+                            for i in range(180):
+                                time.sleep(5)
+                                status.text(f"생성 중... ({i*5}초 경과)")
+                                progress.progress(min((i+1) / 180, 0.99))
+                                
+                                poll = requests.get(
+                                    f"https://api.replicate.com/v1/predictions/{pred_id}",
+                                    headers={"Authorization": f"Token {api_key}"}
+                                )
+                                result = poll.json()
+                                
+                                if result["status"] == "succeeded":
+                                    progress.progress(1.0)
+                                    status.text("✅ 완료!")
+                                    
+                                    output = result.get("output")
+                                    if isinstance(output, list):
+                                        url = output[0] if output else None
+                                    elif isinstance(output, dict):
+                                        url = output.get("video") or output.get("url")
+                                    else:
+                                        url = output
+                                    
+                                    if url:
+                                        st.success("🎉 영상 생성 완료!")
+                                        st.video(url)
+                                        st.code(url)
+                                        
+                                        # 다운로드 버튼
+                                        try:
+                                            video_data = requests.get(url, timeout=60).content
+                                            st.download_button(
+                                                "📥 영상 다운로드",
+                                                video_data,
+                                                "multimodal_video.mp4",
+                                                "video/mp4"
+                                            )
+                                        except:
+                                            st.info("다운로드하려면 위 URL을 복사하세요")
+                                    break
+                                    
+                                elif result["status"] == "failed":
+                                    st.error(f"생성 실패: {result.get('error', '알 수 없는 오류')}")
+                                    break
+                            else:
+                                st.error("시간 초과 (15분)")
+                        else:
+                            st.error("예측 ID를 받지 못했습니다")
+                
+                except Exception as e:
+                    st.error(f"오류 발생: {str(e)}")
