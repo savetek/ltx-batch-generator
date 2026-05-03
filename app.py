@@ -17,7 +17,7 @@ with st.expander("🔑 API 키 발급 방법 (처음 사용자는 클릭)", expa
     
     1. **회원가입**: [Replicate 가입하기](https://replicate.com/signin) (Google/GitHub 계정으로 10초 완료)
     2. **API 키 복사**: [API 토큰 페이지](https://replicate.com/account/api-tokens)에서 키 복사 (`r8_`로 시작)
-    3. **결제 등록** (선택): [결제 페이지](https://replicate.com/account/billing)에서 $5 충전 → 약 50개 영상 생성 가능
+    3. **결제 등록** (선택): [결제 페이지](https://replicate.com/account/billing)에서 $5 충전 → 약 25~50개 영상 생성 가능
     
     💡 **비용**: 모델별로 다름 (아래 비용 비교표 참고)
     """)
@@ -44,8 +44,20 @@ MODELS = {
         "audio": True,
         "image_support": True
     },
+    "⚡ Seedance 2.0 Fast ($0.08/초) - 빠른 멀티모달": {
+        "id": "bytedance/seedance-2.0-fast",
+        "cost": 0.08,
+        "audio": True,
+        "image_support": True
+    },
     "✨ Sora 2 Standard ($0.10/초) - 고품질": {
         "id": "openai/sora-2",
+        "cost": 0.10,
+        "audio": True,
+        "image_support": True
+    },
+    "🌟 Seedance 2.0 ($0.10/초) - 멀티모달+고품질": {
+        "id": "bytedance/seedance-2.0",
         "cost": 0.10,
         "audio": True,
         "image_support": True
@@ -56,7 +68,7 @@ MODELS = {
         "audio": True,
         "image_support": True
     },
-    "🌟 Veo 3 Fast ($0.15/초) - 립싱크 강점": {
+    "🌈 Veo 3 Fast ($0.15/초) - 립싱크 강점": {
         "id": "google/veo-3-fast",
         "cost": 0.15,
         "audio": True,
@@ -89,11 +101,16 @@ with st.expander("💰 모델별 비용 비교"):
     | LTX-2 Distilled | $0.02 | $0.20 | ✅ | 가장 저렴, 빠름 |
     | Grok Imagine | $0.05 | $0.50 | ✅ | 가성비 최고 |
     | Kling 2.6 | $0.07 | $0.70 | ✅ | 안정적 품질 |
+    | **Seedance 2.0 Fast** | $0.08 | $0.80 | ✅ | **빠른 멀티모달** |
     | Sora 2 Standard | $0.10 | $1.00 | ✅ | 고품질 |
-    | **Seedance 1.5 Pro** | $0.15 | $1.50 | ✅ | **립싱크+다국어** |
+    | **Seedance 2.0** | $0.10 | $1.00 | ✅ | **멀티모달+고품질** |
+    | Seedance 1.5 Pro | $0.15 | $1.50 | ✅ | 립싱크+다국어 |
     | Veo 3 Fast | $0.15 | $1.50 | ✅ | 립싱크 강점 |
     | Sora 2 Pro | $0.30 | $3.00 | ✅ | 최고 품질 |
     | Veo 3 Standard | $0.40 | $4.00 | ✅ | 프리미엄 |
+    
+    ---
+    **💡 Seedance 2.0 특별 기능**: 이미지 9개 + 영상 3개 + 오디오 3개 동시 참조 가능!
     """)
 
 # 모드 선택
@@ -140,6 +157,15 @@ def create_zip_i2v(results):
 if mode == "📝 텍스트 → 영상":
     st.subheader("📝 텍스트 → 영상 생성")
     
+    # Seedance 2.0 팁
+    if "seedance-2.0" in model_id:
+        st.info("""
+        💡 **Seedance 2.0 프롬프트 팁**:
+        - 대사는 큰따옴표로: `남자가 말했다: "안녕하세요"`
+        - 카메라 움직임 명시: `slow zoom in`, `pan left`
+        - 분위기 설명: `cinematic lighting`, `warm tone`
+        """)
+    
     prompts_text = st.text_area(
         "프롬프트 입력 (빈 줄로 구분)",
         height=200,
@@ -181,7 +207,22 @@ if mode == "📝 텍스트 → 영상":
         with col2:
             resolution = st.selectbox("해상도", ["480p", "720p", "1080p"], index=1)
     
-    elif "seedance" in model_id:
+    elif "seedance-2.0" in model_id:
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            duration = st.selectbox("영상 길이", [-1, 5, 10, 15], index=2, help="-1: AI 자동 결정")
+        with col2:
+            resolution = st.selectbox("해상도", ["480p", "720p"], index=1)
+        with col3:
+            aspect_ratio = st.selectbox("화면 비율", ["adaptive", "16:9", "9:16", "4:3", "1:1"], index=1, help="adaptive: AI 자동 결정")
+        
+        col4, col5 = st.columns(2)
+        with col4:
+            audio_enabled = st.checkbox("🔊 오디오 생성", value=True)
+        with col5:
+            seed = st.number_input("시드 (랜덤: -1)", min_value=-1, max_value=999999, value=-1)
+    
+    elif "seedance-1.5" in model_id:
         col1, col2, col3 = st.columns(3)
         with col1:
             duration = st.selectbox("영상 길이", [5, 10], index=1, help="초 단위")
@@ -253,7 +294,17 @@ if mode == "📝 텍스트 → 영상":
                         "duration": duration,
                         "resolution": resolution
                     }
-                elif "seedance" in model_id:
+                elif "seedance-2.0" in model_id:
+                    input_params = {
+                        "prompt": prompt,
+                        "duration": duration,
+                        "aspect_ratio": aspect_ratio,
+                        "resolution": resolution,
+                        "audio": audio_enabled
+                    }
+                    if seed >= 0:
+                        input_params["seed"] = seed
+                elif "seedance-1.5" in model_id:
                     input_params = {
                         "prompt": prompt,
                         "duration": duration,
@@ -350,6 +401,14 @@ else:
     
     if not model_info["image_support"]:
         st.stop()
+    
+    # Seedance 2.0 멀티모달 팁
+    if "seedance-2.0" in model_id:
+        st.info("""
+        💡 **Seedance 2.0 이미지→영상 팁**:
+        - 여러 이미지 참조 시 프롬프트에 `[Image1]`, `[Image2]` 등 사용
+        - 예: `[Image1]의 캐릭터가 걸어갑니다`
+        """)
     
     # 이미지 업로드
     uploaded_files = st.file_uploader(
@@ -453,7 +512,22 @@ else:
             with col2:
                 i2v_resolution = st.selectbox("해상도", ["480p", "720p", "1080p"], index=1, key="i2v_res")
         
-        elif "seedance" in model_id:
+        elif "seedance-2.0" in model_id:
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                i2v_duration = st.selectbox("영상 길이", [-1, 5, 10, 15], index=2, key="i2v_dur", help="-1: AI 자동 결정")
+            with col2:
+                i2v_resolution = st.selectbox("해상도", ["480p", "720p"], index=1, key="i2v_res")
+            with col3:
+                i2v_aspect = st.selectbox("화면 비율", ["adaptive", "16:9", "9:16", "4:3", "1:1"], index=1, key="i2v_asp")
+            
+            col4, col5 = st.columns(2)
+            with col4:
+                i2v_audio = st.checkbox("🔊 오디오 생성", value=True, key="i2v_audio")
+            with col5:
+                i2v_seed = st.number_input("시드 (랜덤: -1)", min_value=-1, max_value=999999, value=-1, key="i2v_seed")
+        
+        elif "seedance-1.5" in model_id:
             col1, col2, col3 = st.columns(3)
             with col1:
                 i2v_duration = st.selectbox("영상 길이", [5, 10], index=1, key="i2v_dur")
@@ -515,7 +589,18 @@ else:
                             "duration": i2v_duration,
                             "resolution": i2v_resolution
                         }
-                    elif "seedance" in model_id:
+                    elif "seedance-2.0" in model_id:
+                        input_params = {
+                            "first_frame_image": item['data_uri'],
+                            "prompt": item['prompt'] or "animate this image",
+                            "duration": i2v_duration,
+                            "aspect_ratio": i2v_aspect,
+                            "resolution": i2v_resolution,
+                            "audio": i2v_audio
+                        }
+                        if i2v_seed >= 0:
+                            input_params["seed"] = i2v_seed
+                    elif "seedance-1.5" in model_id:
                         input_params = {
                             "image": item['data_uri'],
                             "prompt": item['prompt'] or "animate this image",
